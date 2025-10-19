@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 const fs = require("node:fs")
 const path = require('path');
+
 let config
 try {
     config = require("./config.json")
 } catch (err) {
-    config = {}
+    // If config doesn't exist, db functions won't work. index.js handles creation.
+    console.error("config.json not found. Please run 'log init'.");
+    process.exit(1);
 }
 
 
@@ -39,7 +42,7 @@ function timeSince(date) {
 
 
 let jsondata = []
-let datalocation = `./${config.fileinfo.database_folder}/${config.fileinfo.database_file}.${config.fileinfo.database_file_extension}`
+let datalocation = path.join(__dirname, config.fileinfo.database_folder, `${config.fileinfo.database_file}.${config.fileinfo.database_file_extension}`);
 let foldername = config.fileinfo.database_folder
 const check = () => {
     if (fs.existsSync(`./${foldername}`)) {
@@ -52,7 +55,7 @@ const check = () => {
             jsondata = []
             console.log("Data not found!");
         }
-    } else {
+    } else if (foldername) {
         fs.mkdir(`${foldername}`, { recursive: true }, (e, d) => {
             if (e) throw e;
             console.log(`Database created`)
@@ -70,7 +73,12 @@ check()
 
 const set = (data) => {
     jsondata.push(data);
-    fs.writeFileSync(datalocation, JSON.stringify(jsondata))
+    try {
+        fs.writeFileSync(datalocation, JSON.stringify(jsondata, null, 2)); // Pretty-print JSON
+    } catch (error) {
+        console.error("Failed to write to database file:", error);
+        return null;
+    }
     return data.id
 }
 
@@ -84,26 +92,27 @@ const get = (query) => {
                 console.log(jsondata.map(i => timeSince(new Date(Date.now() - parseInt(i.id, 36)))))
             }
         }
-    } else {
-        console.log("Data not found")
+    } 
+    // No need for an else, returning undefined is fine if no data.
+}
+
+// Helper to reduce repetition
+const updateItemById = (id, updateFn) => {
+    const itemIndex = jsondata.findIndex(item => item.id === id);
+    if (itemIndex === -1) {
+        console.log("Item with given ID not found.");
+        return null;
     }
+    updateFn(jsondata[itemIndex]);
+    fs.writeFileSync(datalocation, JSON.stringify(jsondata, null, 2));
+    return id;
 }
 
 const del = (id) => {
-    let arr = [];
-    let delID = ""
-    if (jsondata.length > 0) {
-        jsondata.map((i) => {
-            if (i.id === id) {
-                i.deleted = true;
-                delID = i.id;
-            }
-        })
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata))
-        return delID;
-    } else {
-        console.log("Data not found")
-    }
+    return updateItemById(id, (item) => {
+        item.deleted = true;
+        item.lastupdated = Date.now().toString(36);
+    });
 }
 
 const search = (query) => {
@@ -166,6 +175,7 @@ const update = (uid, utitle, ubody, ucatarr) => {
                     i.category = ucatarr
                     // returnarr.push(`Updated ID:${i.id} query ${i.category} -> ${ucatarr}`)
                 }
+                i.lastupdated = Date.now().toString(36);
             }
         })
         fs.writeFileSync(datalocation, JSON.stringify(jsondata))
@@ -197,94 +207,34 @@ const append = ({ appendid, appendtitle, appendbody, appendcategory }) => {
                 appendcategory.map((j) => {
                     i.category.push(j)
                 })
+                i.lastupdated = Date.now().toString(36);
                 id = i.id
                 fs.writeFileSync(datalocation, JSON.stringify(jsondata))
             }
         })
         return id;
-    } else {
-        return []
     }
+    return [];
 }
 
 const mkhide = (id) => {
-    let returnid = ""
-    if (jsondata.length > 0) {
-        jsondata.map((i) => {
-            if (i.id === id) {
-                i.hidden = true;
-                returnid = i.id;
-            }
-        })
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata))
-        return returnid;
-    } else {
-        console.log("Data not found")
-    }
+    return updateItemById(id, item => { item.hidden = true; });
 }
 
 const unhide = (id) => {
-    let returnid = ""
-    if (jsondata.length > 0) {
-        jsondata.map((i) => {
-            if (i.id === id) {
-                i.hidden = false;
-                returnid = i.id;
-            }
-        })
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata))
-        return returnid;
-    } else {
-        console.log("Data not found")
-    }
+    return updateItemById(id, item => { item.hidden = false; });
 }
 
 const mkfav = (id) => {
-    let returnid = ""
-    if (jsondata.length > 0) {
-        jsondata.map((i) => {
-            if (i.id === id) {
-                i.fav = true;
-                returnid = i.id;
-            }
-        })
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata))
-        return returnid;
-    } else {
-        console.log("Data not found")
-    }
+    return updateItemById(id, item => { item.fav = true; });
 }
 
 const rmfav = (id) => {
-    let returnid = ""
-    if (jsondata.length > 0) {
-        jsondata.map((i) => {
-            if (i.id === id) {
-                i.fav = false;
-                returnid = i.id;
-            }
-        })
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata))
-        return returnid;
-    } else {
-        console.log("Data not found")
-    }
+    return updateItemById(id, item => { item.fav = false; });
 }
 
 const restore = (id) => {
-    let returnid = ""
-    if (jsondata.length > 0) {
-        jsondata.map((i) => {
-            if (i.id === id) {
-                i.deleted = false;
-                returnid = i.id;
-            }
-        })
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata))
-        return returnid;
-    } else {
-        console.log("Data not found")
-    }
+    return updateItemById(id, item => { item.deleted = false; });
 }
 
 // const migrate = () => {

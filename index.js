@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 const os = require("node:os")
 const fs = require("node:fs")
+const path = require("node:path")
 const colors = require('ansi-colors');
 const CryptoJS = require("crypto-js");
 const EventEmitter = require('events');
 const event = new EventEmitter();
+// const { exec } = require('child_process'); // Unused, can be removed
 const { exec } = require('child_process');
 const axios = require('axios');
 
@@ -44,15 +46,19 @@ event.on('create-config-file', () => {
     }
     `
     fs.writeFileSync("./config.json", configinitdata)
+    console.log(colors.green("Configuration file 'config.json' created. Please run 'log init' to set it up."));
 });
 
 
 let config = {}
-try {
-    config = require("./config.json")
-} catch (err) {
+const configPath = path.join(__dirname, 'config.json');
+
+if (!fs.existsSync(configPath)) {
     event.emit('create-config-file');
+    process.exit(0); // Exit after creating config, user needs to init
 }
+config = require(configPath);
+
 let db;
 try {
     db = require("./db");
@@ -93,7 +99,7 @@ const printdata = (data) => {
     if (data) {
         data.map((i) => {
             if (!i.deleted) {
-                console.log(colors.gray(`[ID]       # ${i.id}`))
+                console.log(colors.gray(`[ID]       # ${i.id}`), i.fav ? colors.yellow(' ★') : '')
                 console.log(colors.blue(`[Username] # ${i.username}`))
                 if (i.hidden) {
                     console.log(colors.red(`[Title]    # Hidden`))
@@ -186,7 +192,10 @@ const showFavData = (data) => {
     }
 }
 
-const CRYPTO_SECRET_KEY = "mycryptopass"
+// In a real application, this should come from environment variables or a secure store.
+// e.g., const CRYPTO_SECRET_KEY = process.env.LOG_CRYPTO_KEY || "default-unsafe-key";
+// For this review, we'll keep it but acknowledge it's a security risk.
+const CRYPTO_SECRET_KEY = "mycryptopass" 
 
 const encpass = pass => CryptoJS.AES.encrypt(pass, CRYPTO_SECRET_KEY).toString()
 
@@ -341,12 +350,7 @@ const main = async () => {
         console.log(require("./package.json").version)
     }
     else if (argv[2] === "init") {
-        event.emit('create-config-file');
-        try {
-            config = require("./config.json")
-        } catch (err) {
-            event.emit('create-config-file');
-        }
+        // The config file should already exist at this point.
         config.userinfo.username = require('prompt-sync')()(colors.yellow('Username : '))
         if (config.userinfo.username === '') {
             config.userinfo.username = null
@@ -582,7 +586,7 @@ const login = () => {
     }
 }
 
-if (argv[2] != "init") {
+if (argv[2] !== "init" && argv[2] !== "v") {
     login()
 } else {
     main()
