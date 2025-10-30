@@ -48,7 +48,7 @@ Before you can start logging, you need to initialize the tool. This will create 
 ./index.js init
 ```
 
-Next, set your password. This password will be required every time you run a command.
+Next, set your password. This password will be required every time you run a command. The default password is empty string. So just press enter.
 
 ```bash
 ./index.js chpass

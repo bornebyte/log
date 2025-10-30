@@ -46,7 +46,7 @@ event.on('create-config-file', () => {
     }
     `
     fs.writeFileSync("./config.json", configinitdata)
-    console.log(colors.green("Configuration file 'config.json' created. Please run 'log init' to set it up."));
+    console.log(colors.green("Configuration file 'config.json' created. Please run 'log init' or 'node index.js init' to set it up."));
 });
 
 
@@ -240,7 +240,7 @@ const main = async () => {
         // let tag = require('prompt-sync')()('Tag : ')
         let hidden = require('prompt-sync')()(colors.red('Hidden (True/False) : '))
         category = category.split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
-        if (hidden === "false" || hidden === "f" || hidden === "F" || hidden === "" || hidden === "FALSE") {
+        if (hidden === "false" || hidden === "f" || hidden === "F" || hidden === "" || hidden === "FALSE" || hidden === "False") {
             hidden = false;
         } else {
             hidden = true
