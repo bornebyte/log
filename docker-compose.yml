@@ -1,0 +1,11 @@
+services:
+  log:
+    build: .
+    image: log-cli:latest
+    stdin_open: true
+    tty: true
+    volumes:
+      - log-data:/root/.log-cli
+
+volumes:
+  log-data:

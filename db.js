@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 const fs = require("node:fs")
+const os = require("node:os")
 const path = require('path');
 
-let config
-try {
-    config = require("./config.json")
-} catch (err) {
-    // If config doesn't exist, db functions won't work. index.js handles creation.
+const APP_DIR = process.env.LOG_HOME || path.join(os.homedir(), ".log-cli");
+const CONFIG_PATH = path.join(APP_DIR, "config.json");
+
+if (!fs.existsSync(CONFIG_PATH)) {
     console.error("config.json not found. Please run 'log init'.");
     process.exit(1);
 }
+
+const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 
 
 function timeSince(date) {
@@ -42,39 +44,39 @@ function timeSince(date) {
 
 
 let jsondata = []
-let datalocation = path.join(__dirname, config.fileinfo.database_folder, `${config.fileinfo.database_file}.${config.fileinfo.database_file_extension}`);
-let foldername = config.fileinfo.database_folder
+const foldername = config.fileinfo.database_folder || "data";
+const dataFolderPath = path.join(APP_DIR, foldername);
+const datalocation = path.join(dataFolderPath, `${config.fileinfo.database_file}.${config.fileinfo.database_file_extension}`);
+
+const writeJsonData = () => {
+    fs.writeFileSync(datalocation, JSON.stringify(jsondata, null, 2));
+}
+
 const check = () => {
-    if (fs.existsSync(`./${foldername}`)) {
-        try {
-            let data = require(datalocation)
-            jsondata = data
-            // console.log(data);
-        } catch (e) {
-            // console.log(e);
-            jsondata = []
-            console.log("Data not found!");
-        }
-    } else if (foldername) {
-        fs.mkdir(`${foldername}`, { recursive: true }, (e, d) => {
-            if (e) throw e;
-            console.log(`Database created`)
-        })
-        fs.writeFileSync(datalocation, "")
+    fs.mkdirSync(dataFolderPath, { recursive: true });
+
+    if (!fs.existsSync(datalocation)) {
+        fs.writeFileSync(datalocation, "[]\n");
+        jsondata = [];
+        return;
     }
-    // if (jsondata.length > 0) {
-    //     // some code
-    // } else {
-    //     console.log("Data not found")
-    //     process.exit(1)
-    // }
+
+    try {
+        const file = fs.readFileSync(datalocation, "utf8").trim();
+        jsondata = file ? JSON.parse(file) : [];
+        if (!Array.isArray(jsondata)) {
+            jsondata = [];
+        }
+    } catch (e) {
+        jsondata = [];
+    }
 }
 check()
 
 const set = (data) => {
     jsondata.push(data);
     try {
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata, null, 2)); // Pretty-print JSON
+        writeJsonData();
     } catch (error) {
         console.error("Failed to write to database file:", error);
         return null;
@@ -83,17 +85,19 @@ const set = (data) => {
 }
 
 const get = (query) => {
-    // console.log(obj)
-    if (jsondata.length > 0) {
-        if (query === "") {
-            return jsondata;
-        } else {
-            if (query === "today") {
-                console.log(jsondata.map(i => timeSince(new Date(Date.now() - parseInt(i.id, 36)))))
-            }
-        }
-    } 
-    // No need for an else, returning undefined is fine if no data.
+    if (jsondata.length === 0) {
+        return [];
+    }
+
+    if (query === "") {
+        return jsondata;
+    }
+
+    if (query === "today") {
+        console.log(jsondata.map(i => timeSince(new Date(Date.now() - parseInt(i.id, 36)))));
+    }
+
+    return jsondata;
 }
 
 // Helper to reduce repetition
@@ -104,7 +108,7 @@ const updateItemById = (id, updateFn) => {
         return null;
     }
     updateFn(jsondata[itemIndex]);
-    fs.writeFileSync(datalocation, JSON.stringify(jsondata, null, 2));
+    writeJsonData();
     return id;
 }
 
@@ -116,48 +120,39 @@ const del = (id) => {
 }
 
 const search = (query) => {
-    if (jsondata.length > 0) {
-        let result = []
-        jsondata.map((i) => {
-            const titlequery = i.title.toUpperCase().split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
-            const bodyquery = i.body.toUpperCase().split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
-            let category = i.category.map(str => str.toUpperCase());
-            query = query.map(str => str.toUpperCase());
-            for (let j = 0; j < query.length; j++) {
-                for (let k = 0; k < titlequery.length; k++) {
-                    if ((query[j] === titlequery[k]) || (query[j] === titlequery[k].substring(0, query[j].length)) || (query[j] === (titlequery[k].substring(titlequery[k].indexOf(query[j]), (titlequery[k].length - query[j].length) + 1)))) {
-                        result.push(i)
-                    }
-                }
-            }
-            for (let j = 0; j < query.length; j++) {
-                for (let k = 0; k < bodyquery.length; k++) {
-                    if ((query[j] === bodyquery[k]) || (query[j] === bodyquery[k].substring(0, query[j].length)) || (query[j] === (bodyquery[k].substring(bodyquery[k].indexOf(query[j]), (bodyquery[k].length - query[j].length) + 1)))) {
-                        result.push(i)
-                    }
-                }
-            }
-            for (let j = 0; j < query.length; j++) {
-                for (let k = 0; k < category.length; k++) {
-                    if ((query[j] === category[k]) || (query[j] === category[k].substring(0, query[j].length)) || (query[j] === (category[k].substring(category[k].indexOf(query[j]), (category[k].length - query[j].length) + 1)))) {
-                        result.push(i)
-                    }
-                }
-            }
-            if (i.id.toUpperCase() === query) {
-                result.push(i)
-            }
-        })
-        let qdata = [...new Set(result)]
-        return qdata
-    } else {
+    if (jsondata.length === 0) {
         return []
     }
+
+    const normalizedQuery = (query || []).map(str => String(str).toUpperCase());
+    const result = [];
+
+    jsondata.forEach((item) => {
+        const titleTokens = String(item.title || "").toUpperCase().split(/(\s+)/).filter(e => e.trim().length > 0);
+        const bodyTokens = String(item.body || "").toUpperCase().split(/(\s+)/).filter(e => e.trim().length > 0);
+        const categoryTokens = Array.isArray(item.category) ? item.category.map(str => String(str).toUpperCase()) : [];
+        const itemId = String(item.id || "").toUpperCase();
+
+        const matchesToken = (token, term) => token.includes(term) || token.startsWith(term);
+
+        const hasMatch = normalizedQuery.some((term) => {
+            if (!term) return false;
+            if (itemId === term) return true;
+            if (titleTokens.some(token => matchesToken(token, term))) return true;
+            if (bodyTokens.some(token => matchesToken(token, term))) return true;
+            return categoryTokens.some(token => matchesToken(token, term));
+        });
+
+        if (hasMatch) {
+            result.push(item);
+        }
+    });
+
+    return [...new Set(result)]
 }
 
 const update = (uid, utitle, ubody, ucatarr) => {
     // console.log(id, log, pass, fav, deleted, query)
-    let returnarr = []
     let updatereturnid;
     if (jsondata.length > 0) {
         jsondata.map((i) => {
@@ -165,20 +160,17 @@ const update = (uid, utitle, ubody, ucatarr) => {
                 updatereturnid = i.id
                 if (utitle) {
                     i.title = utitle
-                    // returnarr.push(`Updated ID:${i.id} log ${i.title} -> ${utitle}`)
                 }
                 if (ubody) {
                     i.body = ubody
-                    // returnarr.push(`Updated ID:${i.id} query ${i.body} -> ${ubody}`)
                 }
                 if (ucatarr) {
                     i.category = ucatarr
-                    // returnarr.push(`Updated ID:${i.id} query ${i.category} -> ${ucatarr}`)
                 }
                 i.lastupdated = Date.now().toString(36);
             }
         })
-        fs.writeFileSync(datalocation, JSON.stringify(jsondata))
+        writeJsonData();
         return updatereturnid;
     } else {
         return []
@@ -201,7 +193,7 @@ const append = ({ appendid, appendtitle, appendbody, appendcategory }) => {
     let id = ''
     if (jsondata.length > 0) {
         jsondata.map((i) => {
-            if (i.id == appendid) {
+            if (i.id === appendid) {
                 i.title += appendtitle
                 i.body += appendbody
                 appendcategory.map((j) => {
@@ -209,7 +201,7 @@ const append = ({ appendid, appendtitle, appendbody, appendcategory }) => {
                 })
                 i.lastupdated = Date.now().toString(36);
                 id = i.id
-                fs.writeFileSync(datalocation, JSON.stringify(jsondata))
+                writeJsonData();
             }
         })
         return id;
@@ -246,10 +238,9 @@ const restore = (id) => {
 // }
 const backup = () => {
     if (jsondata.length > 0) {
-        // fs.createReadStream(datalocation).pipe(fs.createWriteStream(`./${foldername}/backup.json`));
-        const sourceFilePath = 'data/data.json';
-        const backupFolderPath = 'backup';
-        const backupFilePath = 'backup/backup.json';
+        const sourceFilePath = datalocation;
+        const backupFolderPath = path.join(APP_DIR, 'backup');
+        const backupFilePath = path.join(backupFolderPath, 'backup.json');
         if (!fs.existsSync(backupFolderPath)) {
             fs.mkdirSync(backupFolderPath);
         }

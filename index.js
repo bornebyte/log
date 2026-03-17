@@ -6,58 +6,69 @@ const colors = require('ansi-colors');
 const CryptoJS = require("crypto-js");
 const EventEmitter = require('events');
 const event = new EventEmitter();
-// const { exec } = require('child_process'); // Unused, can be removed
-const { exec } = require('child_process');
 const axios = require('axios');
 
-event.on('create-config-file', () => {
-    let configinitdata = `
-    {
-        "userinfo": {
-            "username": null,
-            "password": "U2FsdGVkX183RPF/Sut7qIfE8znoijXKlQnxzxW4LuM="
-        },
-        "permissions": {
-            "create": true,
-            "read": true,
-            "update": false,
-            "del": false,
-            "mkfav": false,
-            "unfav": false,
-            "mkhide": false,
-            "unhide": false
-        },
-        "fileinfo": {
-            "database_file": "data",
-            "database_folder": "data",
-            "database_file_extension": "json"
-        },
-        "dbpath": null,
-        "admin":{
-            "password": "U2FsdGVkX183RPF/Sut7qIfE8znoijXKlQnxzxW4LuM="
-        },
-        "left":{
-            "targetdays": []
-        },
-        "chat":{
-            "serverport": 5000,
-            "serverurl" : "https://chatserver.shubham1888.repl.co"
-        }
+const APP_DIR = process.env.LOG_HOME || path.join(os.homedir(), ".log-cli");
+const configPath = path.join(APP_DIR, 'config.json');
+process.env.LOG_HOME = APP_DIR;
+
+const defaultConfig = {
+    userinfo: {
+        username: null,
+        password: "U2FsdGVkX183RPF/Sut7qIfE8znoijXKlQnxzxW4LuM="
+    },
+    permissions: {
+        create: true,
+        read: true,
+        update: false,
+        del: false,
+        mkfav: false,
+        unfav: false,
+        mkhide: false,
+        unhide: false
+    },
+    fileinfo: {
+        database_file: "data",
+        database_folder: "data",
+        database_file_extension: "json"
+    },
+    dbpath: null,
+    admin: {
+        password: "U2FsdGVkX183RPF/Sut7qIfE8znoijXKlQnxzxW4LuM="
+    },
+    left: {
+        targetdays: []
+    },
+    chat: {
+        serverport: 5000,
+        serverurl: "https://chatserver.shubham1888.repl.co"
     }
-    `
-    fs.writeFileSync("./config.json", configinitdata)
-    console.log(colors.green("Configuration file 'config.json' created. Please run 'log init' or 'node index.js init' to set it up."));
+};
+
+event.on('create-config-file', () => {
+    fs.mkdirSync(APP_DIR, { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
+    console.log(colors.green(`Configuration file created at ${configPath}. Please run 'log init' to set it up.`));
 });
 
 
 let config = {}
-const configPath = path.join(__dirname, 'config.json');
+const legacyConfigPath = path.join(__dirname, 'config.json');
+
+if (!fs.existsSync(configPath) && fs.existsSync(legacyConfigPath)) {
+    fs.mkdirSync(APP_DIR, { recursive: true });
+    fs.copyFileSync(legacyConfigPath, configPath);
+}
 
 if (!fs.existsSync(configPath)) {
     event.emit('create-config-file');
     process.exit(0); // Exit after creating config, user needs to init
 }
-config = require(configPath);
+config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+const saveConfig = () => {
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
 
 let db;
 try {
@@ -195,7 +206,7 @@ const showFavData = (data) => {
 // In a real application, this should come from environment variables or a secure store.
 // e.g., const CRYPTO_SECRET_KEY = process.env.LOG_CRYPTO_KEY || "default-unsafe-key";
 // For this review, we'll keep it but acknowledge it's a security risk.
-const CRYPTO_SECRET_KEY = "mycryptopass" 
+const CRYPTO_SECRET_KEY = "mycryptopass"
 
 const encpass = pass => CryptoJS.AES.encrypt(pass, CRYPTO_SECRET_KEY).toString()
 
@@ -211,6 +222,11 @@ const dash = colors.red("-------------------------------------------------------
 // const trimmedStr = str.replace(/\s+/g, ' ').trim();
 
 const main = async () => {
+    if (argv[2] === "help" || argv[2] === "--help" || argv[2] === "-h") {
+        console.log("Commands: l, g, s, u, d, list, show, mkfav, rmfav, hide, unhide, restore, chpass, chuser, whoami, backup, init, reset, v")
+        return
+    }
+
     if (argv[2] === "l") {
         if (config.permissions.create === false) {
             console.log(colors.red("Permission denied"))
@@ -220,7 +236,7 @@ const main = async () => {
         let typeofdata = require('prompt-sync')()(colors.yellow('Type : '))
         let body = ""
         let items = []
-        if (typeofdata === "" || typeofdata === "plane") {
+        if (typeofdata === "" || typeofdata === "plain") {
             body = require('prompt-sync')()(colors.yellow('Body : '))
         }
         else if (typeofdata === "list") {
@@ -228,10 +244,12 @@ const main = async () => {
             let index = 1
             do {
                 item = require('prompt-sync')()(colors.yellow(`${index}: `))
+                if (item === "") {
+                    break
+                }
                 items.push(item)
                 index++
             } while (item !== null);
-            items.pop()
         }
         else {
             console.log(colors.red("Invalid type"))
@@ -309,7 +327,7 @@ const main = async () => {
         let utitle = require('prompt-sync')()('Title : ')
         let ubody = require('prompt-sync')()('Body : ')
         let ucat = require('prompt-sync')()('Category : ')
-        ucatarr = ucat.split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
+        let ucatarr = ucat.split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
         let data = db.update(uid, utitle, ubody, ucatarr)
         console.log(data)
     }
@@ -330,7 +348,7 @@ const main = async () => {
         let pass = require('prompt-sync')().hide(colors.red("New Pass : "))
         // if (pass) {
         config.userinfo.password = encpass(pass)
-        fs.writeFileSync("./config.json", JSON.stringify(config))
+        saveConfig()
         console.log(colors.green("password changed successfully"))
         // } else {
         //     console.log(colors.red("password unchanged"))
@@ -340,7 +358,7 @@ const main = async () => {
         let newusername = require('prompt-sync')()(colors.red("New Username: "))
         if (newusername) {
             config.userinfo.username = newusername
-            fs.writeFileSync("./config.json", JSON.stringify(config))
+            saveConfig()
             console.log(colors.green("Username changed successfully"))
         } else {
             console.log(colors.red("password unchanged"))
@@ -355,13 +373,13 @@ const main = async () => {
         if (config.userinfo.username === '') {
             config.userinfo.username = null
         }
-        config.path = __dirname
-        fs.writeFileSync("./config.json", JSON.stringify(config))
-        fs.mkdirSync("backup", { recursive: true })
+        config.path = APP_DIR
+        saveConfig()
+        fs.mkdirSync(path.join(APP_DIR, "backup"), { recursive: true })
         console.log(colors.yellow("Log initailized successfully"))
     }
     else if (argv[2] === "reset") {
-        fs.unlink('./config.json', (err) => {
+        fs.unlink(configPath, (err) => {
             if (err) {
                 console.error(err)
                 return
@@ -388,7 +406,7 @@ const main = async () => {
         console.log(config.userinfo.username)
     }
     else if (argv[2] === "restore") {
-        id = require('prompt-sync')()(colors.green('ID : '))
+        const id = require('prompt-sync')()(colors.green('ID : '))
         if (id) {
             let res = db.restore(id)
             console.log(res)
@@ -397,7 +415,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "hide") {
-        id = require('prompt-sync')()(colors.green('ID : '))
+        const id = require('prompt-sync')()(colors.green('ID : '))
         if (id) {
             let res = db.mkhide(id)
             console.log(res)
@@ -406,7 +424,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "unhide") {
-        id = require('prompt-sync')()(colors.green('ID : '))
+        const id = require('prompt-sync')()(colors.green('ID : '))
         if (id) {
             let res = db.unhide(id)
             console.log(res)
@@ -415,7 +433,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "mkfav") {
-        id = require('prompt-sync')()(colors.green('ID : '))
+        const id = require('prompt-sync')()(colors.green('ID : '))
         if (id) {
             let res = db.mkfav(id)
             console.log(res)
@@ -424,7 +442,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "rmfav") {
-        id = require('prompt-sync')()(colors.green('ID : '))
+        const id = require('prompt-sync')()(colors.green('ID : '))
         if (id) {
             let res = db.rmfav(id)
             console.log(res)
@@ -473,7 +491,7 @@ const main = async () => {
         if (authadmin(pass)) {
             let newpass = require('prompt-sync')().hide(colors.green('New password for admin : '))
             config.admin.password = encpass(newpass)
-            fs.writeFileSync("./config.json", JSON.stringify(config))
+            saveConfig()
             console.log(colors.yellow("Updated password for admin successfully"))
         } else {
             console.log(colors.red("Invalid credentials"))
@@ -522,14 +540,14 @@ const main = async () => {
                 default:
                     break;
             }
-            fs.writeFileSync("./config.json", JSON.stringify(config))
+            saveConfig()
             console.log(colors.yellow("Updated permission"))
         } else {
             console.log(colors.red("Invalid credentials"))
         }
     }
     else if (argv[2] === "path") {
-        console.log(colors.yellowBright(config.path))
+        console.log(colors.yellowBright(config.path || APP_DIR))
     }
     else if (argv[2] === "enc") {
         let encdata = require('prompt-sync')()(colors.red('Encrypt : '))
@@ -557,12 +575,16 @@ const main = async () => {
     //     }
     // }
     else if (argv[2] === "export") {
-        let data = db.get("")
-        let res = []
-        data.map(async (i) => {
-            res.push(await axios.post('https://api.shubham1888.repl.co/api/log/items', i))
-        })
-        console.log(res.data)
+        const data = db.get("") || []
+        const res = await Promise.all(data.map(async (item) => {
+            try {
+                await axios.post('https://api.shubham1888.repl.co/api/log/items', item)
+                return { id: item.id, status: 'ok' }
+            } catch (error) {
+                return { id: item.id, status: 'failed', error: error.message }
+            }
+        }))
+        console.log(res)
     }
     else if (argv[2] === "import") {
         let res
@@ -575,18 +597,21 @@ const main = async () => {
 }
 
 const login = () => {
-    let pass = require('prompt-sync')().hide(colors.red('Password : '))
-    if (pass === null) { process.exit() }
-    if (auth(pass)) {
-        console.log(colors.yellow(`Login as ${config.userinfo.username}`))
-        main()
-    } else {
+    while (true) {
+        const pass = require('prompt-sync')().hide(colors.red('Password : '))
+        if (pass === null) {
+            process.exit()
+        }
+        if (auth(pass)) {
+            console.log(colors.yellow(`Login as ${config.userinfo.username}`))
+            main()
+            return
+        }
         console.log(colors.red(`Login failed`))
-        login()
     }
 }
 
-if (argv[2] !== "init" && argv[2] !== "v") {
+if (argv[2] !== "init" && argv[2] !== "v" && argv[2] !== "help" && argv[2] !== "--help" && argv[2] !== "-h") {
     login()
 } else {
     main()
