@@ -218,6 +218,24 @@ const authadmin = pass => decpass(config.admin.password) === pass;
 
 const dash = colors.red("--------------------------------------------------------")
 
+const promptInput = (message) => {
+    const value = require('prompt-sync')()(message)
+    if (value === null) {
+        console.log(colors.red("Operation cancelled."))
+        process.exit(130)
+    }
+    return value
+}
+
+const promptHiddenInput = (message) => {
+    const value = require('prompt-sync')().hide(message)
+    if (value === null) {
+        console.log(colors.red("Operation cancelled."))
+        process.exit(130)
+    }
+    return value
+}
+
 // remove extra spaces using regular expression
 // const trimmedStr = str.replace(/\s+/g, ' ').trim();
 
@@ -232,18 +250,18 @@ const main = async () => {
             console.log(colors.red("Permission denied"))
             process.exit(1)
         }
-        let title = require('prompt-sync')()(colors.yellow('Title : '))
-        let typeofdata = require('prompt-sync')()(colors.yellow('Type : '))
+        let title = promptInput(colors.yellow('Title : '))
+        let typeofdata = promptInput(colors.yellow('Type : '))
         let body = ""
         let items = []
         if (typeofdata === "" || typeofdata === "plain") {
-            body = require('prompt-sync')()(colors.yellow('Body : '))
+            body = promptInput(colors.yellow('Body : '))
         }
         else if (typeofdata === "list") {
             let item = ""
             let index = 1
             do {
-                item = require('prompt-sync')()(colors.yellow(`${index}: `))
+                item = promptInput(colors.yellow(`${index}: `))
                 if (item === "") {
                     break
                 }
@@ -253,10 +271,11 @@ const main = async () => {
         }
         else {
             console.log(colors.red("Invalid type"))
+            return
         }
-        let category = require('prompt-sync')()(colors.yellow('Category : '))
+        let category = promptInput(colors.yellow('Category : '))
         // let tag = require('prompt-sync')()('Tag : ')
-        let hidden = require('prompt-sync')()(colors.red('Hidden (True/False) : '))
+        let hidden = promptInput(colors.red('Hidden (True/False) : '))
         category = category.split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
         if (hidden === "false" || hidden === "f" || hidden === "F" || hidden === "" || hidden === "FALSE" || hidden === "False") {
             hidden = false;
@@ -285,7 +304,7 @@ const main = async () => {
             console.log(colors.red("Permission denied"))
             process.exit(1)
         }
-        let items = require('prompt-sync')()(colors.yellow('Get : '))
+        let items = promptInput(colors.yellow('Get : '))
         let data = db.get(items)
         printdata(data)
     }
@@ -294,7 +313,7 @@ const main = async () => {
             console.log(colors.red("Permission denied"))
             process.exit(1)
         }
-        let delid = require('prompt-sync')()(colors.green('Delete ID : '))
+        let delid = promptInput(colors.green('Delete ID : '))
         let data = db.del(delid)
         console.log(data)
     }
@@ -303,7 +322,7 @@ const main = async () => {
             console.log(colors.red("Permission denied"))
             process.exit(1)
         }
-        let inputdata = require('prompt-sync')()('Search : ')
+        let inputdata = promptInput('Search : ')
         let query = inputdata.split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
         let data = db.search(query)
         printdata(data)
@@ -323,10 +342,10 @@ const main = async () => {
             process.exit(1)
         }
         console.log(colors.red("[ID] [LOG] [Pass] [FAV] [DELETE] "))
-        let uid = require('prompt-sync')()('ID : ')
-        let utitle = require('prompt-sync')()('Title : ')
-        let ubody = require('prompt-sync')()('Body : ')
-        let ucat = require('prompt-sync')()('Category : ')
+        let uid = promptInput('ID : ')
+        let utitle = promptInput('Title : ')
+        let ubody = promptInput('Body : ')
+        let ucat = promptInput('Category : ')
         let ucatarr = ucat.split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
         let data = db.update(uid, utitle, ubody, ucatarr)
         console.log(data)
@@ -336,16 +355,16 @@ const main = async () => {
             console.log(colors.red("Permission denied"))
             process.exit(1)
         }
-        let appendid = require('prompt-sync')()('ID : ')
-        let appendtitle = require('prompt-sync')()('Title : ')
-        let appendbody = require('prompt-sync')()('Body : ')
-        let appendcategory = require('prompt-sync')()('Category : ')
+        let appendid = promptInput('ID : ')
+        let appendtitle = promptInput('Title : ')
+        let appendbody = promptInput('Body : ')
+        let appendcategory = promptInput('Category : ')
         appendcategory = appendcategory.split(/(\s+)/).filter(function (e) { return e.trim().length > 0; });
         let data = db.append({ appendid, appendtitle, appendbody, appendcategory })
         console.log(data)
     }
     else if (argv[2] === "chpass") {
-        let pass = require('prompt-sync')().hide(colors.red("New Pass : "))
+        let pass = promptHiddenInput(colors.red("New Pass : "))
         // if (pass) {
         config.userinfo.password = encpass(pass)
         saveConfig()
@@ -355,7 +374,7 @@ const main = async () => {
         // }
     }
     else if (argv[2] === "chuser") {
-        let newusername = require('prompt-sync')()(colors.red("New Username: "))
+        let newusername = promptInput(colors.red("New Username: "))
         if (newusername) {
             config.userinfo.username = newusername
             saveConfig()
@@ -369,7 +388,7 @@ const main = async () => {
     }
     else if (argv[2] === "init") {
         // The config file should already exist at this point.
-        config.userinfo.username = require('prompt-sync')()(colors.yellow('Username : '))
+        config.userinfo.username = promptInput(colors.yellow('Username : '))
         if (config.userinfo.username === '') {
             config.userinfo.username = null
         }
@@ -406,7 +425,7 @@ const main = async () => {
         console.log(config.userinfo.username)
     }
     else if (argv[2] === "restore") {
-        const id = require('prompt-sync')()(colors.green('ID : '))
+        const id = promptInput(colors.green('ID : '))
         if (id) {
             let res = db.restore(id)
             console.log(res)
@@ -415,7 +434,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "hide") {
-        const id = require('prompt-sync')()(colors.green('ID : '))
+        const id = promptInput(colors.green('ID : '))
         if (id) {
             let res = db.mkhide(id)
             console.log(res)
@@ -424,7 +443,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "unhide") {
-        const id = require('prompt-sync')()(colors.green('ID : '))
+        const id = promptInput(colors.green('ID : '))
         if (id) {
             let res = db.unhide(id)
             console.log(res)
@@ -433,7 +452,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "mkfav") {
-        const id = require('prompt-sync')()(colors.green('ID : '))
+        const id = promptInput(colors.green('ID : '))
         if (id) {
             let res = db.mkfav(id)
             console.log(res)
@@ -442,7 +461,7 @@ const main = async () => {
         }
     }
     else if (argv[2] === "rmfav") {
-        const id = require('prompt-sync')()(colors.green('ID : '))
+        const id = promptInput(colors.green('ID : '))
         if (id) {
             let res = db.rmfav(id)
             console.log(res)
@@ -487,9 +506,9 @@ const main = async () => {
         }
     }
     else if (argv[2] === "chadmin") {
-        let pass = require('prompt-sync')().hide(colors.red('Password for admin : '))
+        let pass = promptHiddenInput(colors.red('Password for admin : '))
         if (authadmin(pass)) {
-            let newpass = require('prompt-sync')().hide(colors.green('New password for admin : '))
+            let newpass = promptHiddenInput(colors.green('New password for admin : '))
             config.admin.password = encpass(newpass)
             saveConfig()
             console.log(colors.yellow("Updated password for admin successfully"))
@@ -498,12 +517,12 @@ const main = async () => {
         }
     }
     else if (argv[2] === "chper") {
-        let pass = require('prompt-sync')().hide(colors.red('Password for admin : '))
+        let pass = promptHiddenInput(colors.red('Password for admin : '))
         if (authadmin(pass)) {
             let pervalues = "create | read | update | del | mkfav | unfav | hide | unhide"
             console.log(colors.blue(pervalues))
-            let pf = require('prompt-sync')()(colors.green('Permission for : '))
-            let val = require('prompt-sync')()(colors.green('T/F : '))
+            let pf = promptInput(colors.green('Permission for : '))
+            let val = promptInput(colors.green('T/F : '))
             val = val.toUpperCase()
             if (val === "T") {
                 val = true
@@ -550,11 +569,11 @@ const main = async () => {
         console.log(colors.yellowBright(config.path || APP_DIR))
     }
     else if (argv[2] === "enc") {
-        let encdata = require('prompt-sync')()(colors.red('Encrypt : '))
+        let encdata = promptInput(colors.red('Encrypt : '))
         console.log(encpass(encdata))
     }
     else if (argv[2] === "dec") {
-        let dncdata = require('prompt-sync')()(colors.red('Decrypt : '))
+        let dncdata = promptInput(colors.red('Decrypt : '))
         console.log(decpass(dncdata))
     }
     // else if (argv[2] === "chat") {
@@ -598,10 +617,7 @@ const main = async () => {
 
 const login = () => {
     while (true) {
-        const pass = require('prompt-sync')().hide(colors.red('Password : '))
-        if (pass === null) {
-            process.exit()
-        }
+        const pass = promptHiddenInput(colors.red('Password : '))
         if (auth(pass)) {
             console.log(colors.yellow(`Login as ${config.userinfo.username}`))
             main()
